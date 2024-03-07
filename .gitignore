@@ -50,3 +50,18 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Compiled files
+checkpoint_0
+checkpoint_0_360
+checkpoint_0_3600
+checkpoint_0_18000
+checkpoint_1
+checkpoint_1_360
+checkpoint_1_3600
+checkpoint_1_18000
+checkpoint_2
+checkpoint_2_360
+checkpoint_2_3600
+checkpoint_2_18000
+
