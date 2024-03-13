@@ -18,7 +18,7 @@
 
 #include <omp.h>
 
-#define N 3600
+#define N 18000
 
 /* time measurement variables */
 struct timeval start_time; /* time when program started */
@@ -77,6 +77,8 @@ parallel_write(int fd, const void *buf, size_t count, off_t offset, uint64_t *io
 {
    size_t nb = 0;
 
+   // printf("Inside Parallel Write=%d/%d\n", omp_get_thread_num(), omp_get_num_threads());
+
    while (nb < count)
    {
       ssize_t ret;
@@ -114,7 +116,7 @@ calculate(double **matrix, int iterations, int threads)
    omp_set_dynamic(0);
    omp_set_num_threads(threads);
 
-   fd = open("matrix.out", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+   fd = open("matrix_0.out", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
    if (fd == -1)
    {
@@ -163,7 +165,7 @@ calculate(double **matrix, int iterations, int threads)
    io_time = iotime_counter / threads;
    io_bytes = lnb;
 
-   printf("io_bytes: %lu\n", io_bytes);
+   printf("IO bytes: %lu\n", io_bytes);
 
    close(fd);
 }

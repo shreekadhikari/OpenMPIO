@@ -18,7 +18,7 @@
 
 #include <omp.h>
 
-#define N 360
+#define N 18000
 
 /* time measurement variables */
 struct timeval start_time; /* time when program started */
@@ -73,55 +73,39 @@ init_matrix(double **matrix)
 }
 
 static size_t
-parallel_write(int fd, const void *buf, size_t count, off_t offset)
+parallel_write(int fd, const void *buf, size_t count, off_t offset, uint64_t *io_counter)
 {
-	// size_t nb = 0;
-
-	// printf("%d ", fd);
-
-	// while (nb < count)
-	// {
-	// 	ssize_t ret;
-
-	// 	ret = pwrite(fd, (char *)buf + nb, count - nb, offset + nb);
-
-	// 	if (ret < 0)
-	// 	{
-	// 		printf("Error: cannot write to checkpoint\n");
-	// 		exit(EXIT_FAILURE);
-	// 	}
-
-	// 	nb += ret;
-	// }
-
 	size_t nb = 0;
 	size_t chunk_size = count / omp_get_num_threads(); // Calculate chunk size
 
-#pragma omp parallel shared(nb)
+	size_t tid = omp_get_thread_num();
+	size_t start = tid * chunk_size;
+	size_t end = (tid == (unsigned int)omp_get_num_threads() - 1) ? count : start + chunk_size;
+
+	size_t local_nb = 0;
+
+	// printf("Inside Parallel Write=%d/%d\n", omp_get_thread_num(), omp_get_num_threads());
+
+	while (start < end)
 	{
-		size_t tid = omp_get_thread_num();
-		size_t start = tid * chunk_size;
-		size_t end = (tid == (unsigned int)omp_get_num_threads() - 1) ? count : start + chunk_size;
 
-		size_t local_nb = 0;
+		ssize_t ret = pwrite(fd, (char *)buf + start, end - start, offset + start);
+		*io_counter += 1;
 
-		while (start < end)
+		if (ret < 0)
 		{
-			ssize_t ret = pwrite(fd, (char *)buf + start, end - start, offset + start);
-
-			if (ret < 0)
-			{
-				printf("Error: cannot write to checkpoint\n");
-				exit(EXIT_FAILURE);
-			}
-
-			start += ret;
-			local_nb += ret;
+			printf("Error: cannot write to checkpoint\n");
+			exit(EXIT_FAILURE);
 		}
 
-#pragma omp atomic
-		nb += local_nb;
+		start += ret;
+		local_nb += ret;
 	}
+
+#pragma omp atomic
+	nb += local_nb;
+
+	fsync(fd);
 
 	return nb;
 }
@@ -129,7 +113,8 @@ parallel_write(int fd, const void *buf, size_t count, off_t offset)
 /* ************************************************************************ */
 /*  caluclate                                                               */
 /* ************************************************************************ */
-static void calculate(double **matrix, int iterations, int threads)
+static void
+calculate(double **matrix, int iterations, int threads)
 {
 	int i, j, k, l;
 	int fd;
@@ -141,7 +126,7 @@ static void calculate(double **matrix, int iterations, int threads)
 	omp_set_dynamic(0);
 	omp_set_num_threads(threads);
 
-	fd = open("matrix.out", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	fd = open("matrix_1.out", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 	if (fd == -1)
 	{
@@ -162,7 +147,6 @@ static void calculate(double **matrix, int iterations, int threads)
 		for (k = 1; k <= iterations; k++)
 		{
 #pragma omp for
-			// printf("Loop ");
 			for (i = 0; i < N; i++)
 			{
 				for (j = 0; j < N; j++)
@@ -176,9 +160,7 @@ static void calculate(double **matrix, int iterations, int threads)
 
 			gettimeofday(&io_start_time, NULL);
 
-// matrix[0] works because the underlying buffer is contiguous (see alloc_matrix)
-#pragma omp single
-			lnb += parallel_write(fd, matrix[0], N * N * sizeof(double), 0);
+			lnb += parallel_write(fd, matrix[0], N * N * sizeof(double), 0, &io_counter);
 
 			gettimeofday(&io_end_time, NULL);
 			iotime_counter += (io_end_time.tv_sec - io_start_time.tv_sec) + (io_end_time.tv_usec - io_start_time.tv_usec) * 1e-6;
@@ -191,7 +173,7 @@ static void calculate(double **matrix, int iterations, int threads)
 	io_time = iotime_counter / threads;
 	io_bytes = lnb;
 
-	printf("io_bytes: %lu\n", io_bytes);
+	printf("IO bytes: %lu\n", io_bytes);
 
 	close(fd);
 }
