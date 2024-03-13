@@ -1,5 +1,5 @@
-checkpoint_0.c is origin file with minimal changes.
+Original file: checkpoint_0.c
 
-checkpoint_1.c has changes but not currently working on.
+Current file: checkpoint_1.c
 
-checkpoint_2.c is the lastes file being worked on.
+Previous file: checkpoint_2.c
